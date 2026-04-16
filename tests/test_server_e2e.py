@@ -1,8 +1,8 @@
-"""
-End-to-end integration tests for MCP server startup and component discovery.
+"""End-to-end integration tests for the calculus-helper MCP server.
 
-Tests that the server correctly discovers tools, resources, and prompts via
-FileSystemProvider, and that discovered components behave correctly at runtime.
+Exercises the actual FastMCP server process (in-process and over HTTP) to
+verify tool discovery and round-trip invocation work through the real client
+API -- not just direct Python calls to the tool functions.
 """
 
 import pytest
@@ -21,150 +21,80 @@ async def client():
         yield c
 
 
-# ---------------------------------------------------------------------------
-# Discovery tests
-# ---------------------------------------------------------------------------
-
+# The 8 calculus tools this server exposes.
 EXPECTED_TOOLS = [
-    "echo",
-    "delete_all",
-    "get_weather",
-    "write_release_notes",
-    "process_data",
-    "validate_input",
-    "analyze_text",
-    "configure_system",
-    "calculate_statistics",
-    "format_text",
+    "differentiate",
+    "evaluate_limit",
+    "evaluate_numeric",
+    "integrate",
+    "simplify_expression",
+    "solve_equation",
+    "solve_ode",
+    "taylor_series",
 ]
 
-EXPECTED_RESOURCES = [
-    "readme_snippet",
-    "japan_profile",
-    "passport_lost_protocol",
-    "first_international_trip_checklist",
-]
 
-EXPECTED_PROMPTS = [
-    "summarize",
-    "classify",
-    "analyze_sentiment",
-    "extract_entities",
-    "generate_docstring",
-    "generate_readme",
-    "explain_code",
-    "generate_api_docs",
-    "translate_text",
-    "proofread_text",
-    "compare_texts",
-    "generate_title",
-]
+# ---------------------------------------------------------------------------
+# Discovery
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("tool_name", EXPECTED_TOOLS)
 async def test_server_discovers_tools(client, tool_name):
-    """Server discovers all expected tools via FileSystemProvider."""
+    """Server discovers all expected calculus tools via FileSystemProvider."""
     tools = await client.list_tools()
     names = {t.name for t in tools}
-    assert tool_name in names, f"Expected tool '{tool_name}' not found in {sorted(names)}"
-
-
-@pytest.mark.parametrize("resource_name", EXPECTED_RESOURCES)
-async def test_server_discovers_resources(client, resource_name):
-    """Server discovers all expected resources via FileSystemProvider."""
-    resources = await client.list_resources()
-    names = {r.name for r in resources}
-    assert resource_name in names, (
-        f"Expected resource '{resource_name}' not found in {sorted(names)}"
+    assert tool_name in names, (
+        f"Expected tool '{tool_name}' not found in {sorted(names)}"
     )
 
 
-@pytest.mark.parametrize("prompt_name", EXPECTED_PROMPTS)
-async def test_server_discovers_prompts(client, prompt_name):
-    """Server discovers all expected prompts via FileSystemProvider."""
-    prompts = await client.list_prompts()
-    names = {p.name for p in prompts}
-    assert prompt_name in names, (
-        f"Expected prompt '{prompt_name}' not found in {sorted(names)}"
+async def test_exactly_eight_tools_registered(client):
+    """No unexpected tools leak in (regression guard against example rot)."""
+    tools = await client.list_tools()
+    names = sorted(t.name for t in tools)
+    assert names == sorted(EXPECTED_TOOLS), (
+        f"Unexpected tool set. Got: {names}. Expected: {sorted(EXPECTED_TOOLS)}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Tool behaviour tests
+# Round-trip through the MCP client API
 # ---------------------------------------------------------------------------
 
 
-async def test_echo_tool_roundtrip(client):
-    """echo tool returns the exact message it receives."""
-    message = "hello from e2e test"
-    result = await client.call_tool("echo", {"message": message})
-    assert not result.is_error, f"echo returned an error: {result}"
-    assert result.data == message, (
-        f"Expected '{message}', got '{result.data}'"
-    )
-
-
-async def test_tool_error_handling(client):
-    """validate_input raises ToolError for empty/whitespace input.
-
-    FastMCP's Client raises ToolError directly (raise_on_error=True by default)
-    rather than returning an error result object.
-    """
-    with pytest.raises(ToolError, match="empty or whitespace"):
-        await client.call_tool("validate_input", {"data": "   "})
-
-
-async def test_format_text_uppercase(client):
-    """format_text applies uppercase transformation correctly."""
+async def test_differentiate_roundtrip(client):
+    """differentiate via the real FastMCP client returns the expected dict."""
     result = await client.call_tool(
-        "format_text", {"text": "  hello world  ", "uppercase": True, "trim": True}
+        "differentiate", {"expression": "x**3 - 2*x", "variables": ["x"]}
     )
-    assert not result.is_error, f"format_text returned an error: {result}"
-    assert result.data == "HELLO WORLD", (
-        f"Expected 'HELLO WORLD', got '{result.data}'"
-    )
-
-
-async def test_configure_system_returns_dict(client):
-    """configure_system returns a config dict with expected keys."""
-    result = await client.call_tool(
-        "configure_system", {"setting": "medium", "timeout": 60}
-    )
-    assert not result.is_error, f"configure_system returned an error: {result}"
-    config = result.data
-    assert isinstance(config, dict), f"Expected dict, got {type(config)}"
-    assert config.get("setting") == "medium", f"Unexpected config: {config}"
-    assert config.get("status") == "configured", f"Unexpected config: {config}"
-
-
-# ---------------------------------------------------------------------------
-# Resource read test
-# ---------------------------------------------------------------------------
-
-
-async def test_resource_read_readme_snippet(client):
-    """readme_snippet resource returns non-empty string content."""
-    content = await client.read_resource("resource://readme-snippet")
-    assert content, "Expected non-empty content from readme_snippet resource"
-    text = content[0].text if isinstance(content, list) else str(content)
-    assert len(text) > 0, f"readme_snippet content was empty: {text!r}"
-
-
-async def test_analyze_text_structured_output(client):
-    """analyze_text returns structured AnalysisResult with expected fields."""
-    result = await client.call_tool(
-        "analyze_text", {"text": "Hello world. This is a test sentence."}
-    )
-    assert not result.is_error, f"analyze_text returned an error: {result}"
+    assert not result.is_error, f"differentiate returned an error: {result}"
     data = result.data
-    for attr in ("word_count", "character_count", "sentence_count",
-                 "avg_word_length", "unique_words"):
-        assert hasattr(data, attr), f"Missing attribute '{attr}' in result: {data}"
-    assert data.word_count > 0, f"Expected positive word_count: {data}"
+    assert data["result"] == "3*x**2 - 2", f"Unexpected result: {data}"
+    assert data["is_exact"] is True
+
+
+async def test_integrate_definite_roundtrip(client):
+    """integrate definite integral via the MCP client API."""
+    result = await client.call_tool(
+        "integrate",
+        {"expression": "x", "variable": "x", "lower_bound": "0", "upper_bound": "1"},
+    )
+    assert not result.is_error
+    assert result.data["result"] == "1/2"
+    assert result.data["is_exact"] is True
+
+
+async def test_parse_error_surfaces_as_tool_error(client):
+    """The '^' coaching error must propagate through the client as a ToolError."""
+    with pytest.raises(ToolError, match=r"\*\*"):
+        await client.call_tool(
+            "differentiate", {"expression": "x^2", "variables": ["x"]}
+        )
 
 
 # ---------------------------------------------------------------------------
-# HTTP transport test
+# HTTP transport
 # ---------------------------------------------------------------------------
 
 
@@ -175,8 +105,6 @@ async def test_http_transport_lists_tools():
         async with Client(url) as http_client:
             tools = await http_client.list_tools()
             names = {t.name for t in tools}
-            assert "echo" in names, f"echo not found via HTTP transport: {sorted(names)}"
-            assert len(tools) >= len(EXPECTED_TOOLS), (
-                f"HTTP transport discovered only {len(tools)} tools, "
-                f"expected at least {len(EXPECTED_TOOLS)}"
+            assert names == set(EXPECTED_TOOLS), (
+                f"HTTP transport tool set mismatch. Got: {sorted(names)}"
             )
