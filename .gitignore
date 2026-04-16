@@ -80,11 +80,15 @@ secret*/
 !.claude/commands/
 !.claude/commands/**
 
-# Retrospectives carried over from the upstream template's own development
-# history -- not relevant to this demo repo.
-retrospectives/
+# The two 2026-04-06 retros carried over from the upstream template's own
+# development history -- not relevant to this demo repo.  New retros for
+# THIS project go under retrospectives/ and are committed normally.
+retrospectives/2026-04-06_*/
 
 # Backup files some editors leave behind
 *.bak
 *.orig
 *~
+
+# Local Claude Code / MemoryHub tooling config
+.memoryhub.yaml
