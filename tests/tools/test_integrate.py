@@ -189,3 +189,51 @@ async def test_caret_in_bound_raises():
             upper_bound="2^3",
             ctx=None,
         )
+
+
+@pytest.mark.asyncio
+async def test_reversed_bounds_flip_sign_per_convention():
+    """Regression lock: `lower_bound > upper_bound` returns the *negative* of
+    the swapped integral, per the standard convention ∫[a,b] f = −∫[b,a] f.
+
+    We deliberately do not auto-swap the bounds -- an agent that accidentally
+    reversed them gets a sign-flipped result (educated by the tool's docstring)
+    rather than a silently-corrected one that hides the mistake.
+
+    Context: during /exercise-tools it was observed that Case B (reversed
+    bounds, positive integrand) and Case C (correct bounds, negative integrand)
+    produce identical responses -- both ``-1/2`` for ``x`` over ``[1, 0]`` vs
+    ``-x`` over ``[0, 1]``.  The ambiguity was noted but the user chose
+    docstring-only education over adding a structured ``assumptions`` entry.
+    See the retrospectives in ``retrospectives/2026-04-16_*`` for the full
+    discussion.  This test locks in the sign-flip behaviour so a future
+    refactor (e.g. auto-swap, or raising an error) can't land silently without
+    failing here first.
+    """
+    ctx = AsyncMock()
+
+    correct_order = await integrate(
+        expression="x",
+        variable="x",
+        lower_bound="0",
+        upper_bound="1",
+        ctx=ctx,
+    )
+    assert correct_order["result"] == "1/2", (
+        f"Sanity: forward bounds should give 1/2, got {correct_order['result']!r}"
+    )
+
+    reversed_bounds = await integrate(
+        expression="x",
+        variable="x",
+        lower_bound="1",
+        upper_bound="0",
+        ctx=ctx,
+    )
+    assert reversed_bounds["result"] == "-1/2", (
+        "Reversed bounds must return the negative per ∫[a,b] = -∫[b,a]; "
+        f"got {reversed_bounds['result']!r}. If bounds are being auto-swapped "
+        "or an error is being raised, revisit the design in TOOLS_PLAN.md and "
+        "the integrate docstring before updating this test."
+    )
+    assert reversed_bounds["is_exact"] is True
