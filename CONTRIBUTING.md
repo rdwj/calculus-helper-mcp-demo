@@ -1,14 +1,18 @@
-# Contributing to MCP Server Template
+# Contributing to calculus-helper-mcp-demo
 
-Thank you for your interest in contributing to the MCP Server Template! We welcome contributions from the community and are grateful for any help you can provide.
+This is a demo repository showing a calculus-focused MCP server built with
+[FastMCP 3.x](https://gofastmcp.com) and SymPy. Contributions that add tools,
+improve docs, or fix bugs are welcome. If you want to start your own similar
+project instead, the underlying scaffold lives at
+[rdwj/mcp-server-template](https://github.com/rdwj/mcp-server-template).
 
 ## Getting Started
 
 1. Fork the repository on GitHub
 2. Clone your fork locally:
    ```bash
-   git clone https://github.com/your-username/mcp-server-template.git
-   cd mcp-server-template
+   git clone https://github.com/your-username/calculus-helper-mcp-demo.git
+   cd calculus-helper-mcp-demo
    ```
 3. Create a new branch for your feature or bug fix:
    ```bash
